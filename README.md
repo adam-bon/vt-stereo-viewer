@@ -1,105 +1,96 @@
-# Vectogram viewer
+# Stereo Viewer (Vision Therapy)
 
-A browser-based stereo viewer for binocular vision exercises, built for XR display glasses in full side-by-side 3D mode (developed on the VITURE Beast) with a red/green anaglyph fallback for ordinary screens.
+A digital vectogram: one quoit per eye on a shared card, slid apart for base-in or base-out, with per-eye prism, rotation and blur. Built for XR display glasses in full side-by-side 3D mode (developed on the VITURE Beast), with a red/green anaglyph mode for ordinary screens.
 
-Each eye sees its own image of a target on the same card. Sliding the two images apart adds base-out (the target floats towards you) or base-in (it sinks behind the card), like sliding the films of a printed vectogram. Both eyes get the same flat picture apart from that horizontal offset, so the only depth cue is binocular disparity: no perspective, shading or motion parallax to fall back on.
+Live: [https://adam-bon.github.io/vt-stereo-viewer/](https://adam-bon.github.io/vt-stereo-viewer/)
 
-> This is a personal training tool, not a medical device. Use it alongside, not instead of, a vision therapist, and run any programme, prism settings and progress readings past them.
+## What it is for
 
-## Files
+The vectogram phase that [vt-contour-target](https://github.com/adam-bon/vt-contour-target) leaves out. Each eye sees its own image of a target on the same card. Sliding the images apart adds base-out (the target floats towards you) or base-in (it sinks behind the card), as sliding the films of a printed Quoits vectogram does. Unlike a printed card, each target can be moved independently, and the two eyes' pictures can be shifted, rotated and blurred separately.
 
-| File | What it is |
-| --- | --- |
-| `sbs.html` | The viewer. Side-by-side and anaglyph modes, gallery, all controls. |
-| `index.html` | Redirects the site's address to `sbs.html`. |
-| `images/` | Gallery pictures, picked up automatically on load. |
-| `images/manifest.js` | Fallback list of the images, only used where the folder can't be listed. |
-| `.nojekyll` | Tells GitHub Pages to serve the files as they are. |
+Design consequences:
 
-## Using it
+- Disparity is the only depth cue. Both eyes get the same flat picture apart from the horizontal offset: no perspective, shading or motion parallax to fall back on. Quoits stay the same size at every depth, so a floated ring looks smaller (SILO) only if the depth is coming from stereo.
+- Everything that should sit on the card (card, contours, centre dot, the marker for the selected quoit) is identical in both eyes, so it stays at zero disparity.
+- L / R suppression boxes are on by default. Each eye sees only its own letter; a letter dropping out means that eye is suppressing.
+- Prism and rotation move an eye's whole picture, like a lens, not just the target. They are meant to be set and then left alone during an exercise.
+- The screen size and distance are set on the glasses, not here, so separations are reported in pixels rather than prism dioptres.
 
-**On XR glasses (side by side):** put the glasses in 3D / SBS mode so the computer sees one wide display (3840×1200 on the Beast at 1200p), open the viewer, press `F` for fullscreen and `H` to hide the control panel. Screen size and distance are set on the glasses; the viewer reports separations in pixels.
-
-**On a normal screen (anaglyph):** switch mode with `M` and wear red/green glasses, red lens on the right eye. The colours for the card and both eyes are adjustable in the panel; tune them per pair of glasses using the tuning notes in the panel.
-
-### Controls
+## Keyboard
 
 | Key | Action |
-| --- | --- |
-| `←` `→` | Base in / out for the selected quoit (`Shift` for bigger steps) |
-| `0` | Align (no demand) |
-| `1` `2` `3` | Select which quoit the controls move (pressing `3` shows all three) |
-| `↑` `↓` | Right eye vertical prism |
-| `[` `]` | Previous / next gallery image |
-| `D` | Centre dot on the card plane |
-| `C` | Contour background |
+|---|---|
+| `←` / `→` | Base in / out for the selected quoit (`Shift` for steps of 10) |
+| `0` | Align the selected quoit (no demand) |
+| `1` / `2` / `3` | Select which quoit the controls move (selecting 3 shows all three) |
+| `↑` / `↓` | Right eye vertical prism (`Shift` for steps of 10) |
+| `[` / `]` | Previous / next gallery image |
+| `D` | Toggle centre dot |
+| `C` | Toggle contour background |
 | `M` | Switch side by side / anaglyph |
 | `X` | Swap eyes (if base-out looks sunken) |
-| `H` | Hide / show the panel |
-| `F` | Fullscreen |
+| `H` | Hide / show the control panel |
+| `F` | Toggle fullscreen |
 
 The disparity slider along the bottom is drawn once per eye so it fuses into a single slider; it, the panel slider and the arrow keys all move the same value.
 
-### Panel features
+## Panel
 
-- **Up to three quoits**, stacked, each with its own base in / out, so planes can be held, compared and fixation can jump between them.
-- **Prism per eye:** horizontal and vertical shift and rotation (torsion) of that eye's whole picture, like prism in the lens. Set once, then leave alone during exercises.
-- **Blur per eye** (side by side): softens one eye's whole picture, like a blur foil.
-- **L / R suppression boxes:** each eye sees only its own letter; a letter dropping out means that eye is suppressing.
-- **Centre dot:** identical in both eyes, so it stays on the card plane. With a floated ring fused, the dot doubles horizontally as expected; any vertical gap between its two images is a binocular finding rather than the picture, which makes it a useful readout to log over time.
-- **Contour background:** faint irregular contour lines on the card, identical in both eyes, to give the card plane texture to fuse. Irregular on purpose: a regular grid can be fused at the wrong repeat.
-- **Ring size, edge softness, blend gamma**, and in anaglyph mode the colours and a subpixel shift.
-- **Reset to defaults** restores everything except the mode.
+| Section | Controls |
+|---|---|
+| Mode / Image | Side by side or anaglyph; gallery image; file picker for extra images (this session only) |
+| Exercise | Number of quoits (1–3), which one is adjusted, base in / out (−300 to +300 % of the ring radius), ring size, edge softness, blend gamma, L / R boxes, centre dot, contour background |
+| Blur | Left and right eye blur, 0–20 px (side by side only) |
+| Prism | Left and right eye horizontal and vertical shift (±150 px) and rotation (±10°) |
+| Display | Swap eyes (side by side) |
+| Colours | Card and both rings, RGB or hex, plus red-channel subpixel shift (anaglyph only) |
 
-## Adding images
+**Copy values** puts the current settings on the clipboard for logging. **Reset to defaults** restores everything except the mode.
 
-Drop files into `images/` and reload; there is no list to edit.
+## Defaults
 
-- A pair named `name_left.png` and `name_right.png` (or `_L` / `_R`) becomes one gallery entry. A single file is shown to both eyes.
-- A leading number sets the order and is hidden from the displayed name: `2-Crystal_left.png` shows as "Crystal". Hyphens show as spaces.
-- Pictures with a transparent background (cut-outs such as the quoit) are scaled so their width matches the ring size. Pictures with no transparency (photos, rendered stereo scenes) are treated as scenes and fill most of each eye's height. The ring-size slider scales both.
-- Splitting a side-by-side stereo image into a pair: crop both halves with exactly the same box, or you change the depth. Parallel-view pairs have the left eye's image on the left; for cross-view pairs, swap the names.
-- Supported formats: PNG, JPEG, SVG, WebP, GIF.
+Side by side, one quoit at base-out 80 %, ring size 30 %, hard edges (softness 0), gamma 2.2, L / R boxes on, centre dot and contours off, no prism, rotation or blur.
 
-The file picker in the panel adds images for the current session only.
+Anaglyph colours, for red/green glasses with the red lens on the right eye: card `#fff0f0`, right eye ring `#00f0f0` (cyan, for the red lens), left eye ring `#ff0000` (red, for the green lens). Tune them per pair of glasses: through the red lens alone the cyan ring should be black and the red ring should vanish, and the reverse through the green lens.
 
-### How the folder is found
+## Images
 
-A browser can't list a folder by itself, so the viewer asks the host:
+Drop files into `images/` and reload. There is no list to edit.
 
-1. On GitHub Pages (`*.github.io`), the GitHub contents API for the repo's `images/` folder. The repo must be public. This makes one API call per page load; GitHub allows 60 per hour per IP.
-2. On a local server that lists directories (for example `python3 -m http.server`), the folder's listing.
-3. Otherwise `images/manifest.js`. Keep it up to date if you host somewhere else, such as a custom domain.
+- `name_left.png` and `name_right.png` (or `_L` / `_R`) become one gallery entry. A single file is shown to both eyes.
+- A leading number sets the order and is hidden from the name: `2-Crystal_left.png` shows as "Crystal". Hyphens show as spaces.
+- Cut-outs (transparent background, such as the quoit) are scaled so their width matches the ring size. Opaque pictures (photos, rendered stereo scenes) are treated as scenes and fill most of each eye's height. Ring size scales both.
+- To split a side-by-side stereo image into a pair, crop both halves with exactly the same box, or the depth changes. Parallel-view pairs have the left eye's image on the left; for cross-view pairs, swap the names.
+- PNG, JPEG, SVG, WebP and GIF are supported.
 
-Opening `sbs.html` straight from disk (`file://`) works for side by side, but anaglyph mode can't read image pixels there; serve it over http(s).
+Shipped: Quoit (rope ring, both eyes), Crystal, Grass valley and Tube (rendered stereo pairs).
 
-## Deploying to GitHub Pages
+The folder is found from the host: on GitHub Pages through the GitHub contents API (the repo must be public; one request per page load, 60 per hour per IP), on a local server through its directory listing, and otherwise from `images/manifest.js`, which then has to be kept up to date.
 
-1. Create a **public** repository on GitHub, for example `vectograms`.
-2. From this folder:
-   ```
-   git init -b main
-   git add .
-   git commit -m "Vectogram viewer"
-   git remote add origin https://github.com/YOUR-USERNAME/vectograms.git
-   git push -u origin main
-   ```
-3. In the repo: **Settings → Pages → Build and deployment**, Source "Deploy from a branch", branch `main`, folder `/ (root)`, Save.
-4. When the "pages build and deployment" run in the **Actions** tab goes green, the viewer is at
-   `https://YOUR-USERNAME.github.io/vectograms/` (which opens `sbs.html`)
+## Session usage
 
-To add images later: copy them into `images/`, then `git add images`, commit, push, and reload once the Pages run has finished.
+1. Glasses in 3D mode, so the computer sees one wide display (3840×1200 on the Beast at 1200p). Open the site and press `F`, then `H` to hide the panel, which otherwise shows in one eye only.
+2. Start aligned (`0`) and check that both L and R are visible and the ring is single. Set any prism or rotation now, with the centre dot on if it helps, then leave it.
+3. Add base-out or base-in in small steps with the arrow keys, holding a single ring with both letters visible. Note SILO and whether the ring floats or sinks.
+4. With the centre dot on and a floated ring fused, the dot should double horizontally only. A vertical gap between its two images is a binocular finding, not the picture. Log it with **Copy values**.
+5. Two or three quoits at different settings let fixation jump between planes.
 
+Prism settings, demands and what the readings mean are for your vision therapist to decide.
 
-## Running locally
+## Technical notes
 
-```
-python3 -m http.server 8000
-```
-then open `http://localhost:8000/sbs.html`. The images folder is found from the server's directory listing.
+- One file, `sbs.html`, inline CSS and JS. No build step, no dependencies. `index.html` only redirects to it.
+- Rings and the anaglyph composite are drawn pixel by pixel in linear light, so edges and crossings stay balanced. Each side-by-side eye is drawn into its own canvas, then placed with that eye's shift, rotation and blur.
+- Full side by side only: each half of the screen is one eye at full resolution. The Beast does not accept half side by side.
+- Needs a current browser (Chromium or Firefox). Per-eye blur uses canvas filters.
+- Anaglyph mode reads image pixels, which browsers block for files opened from disk (`file://`). Serve it over http(s); side by side works either way.
+- Settings are not saved between sessions.
+- Run locally with `python3 -m http.server 8000` and open `http://localhost:8000/sbs.html`.
 
-## Notes and limits
+## Deployment
 
-- XR glasses focus at a fixed distance wherever the target appears in depth, so large demands carry a vergence–accommodation mismatch that real cards and strings don't have.
-- Optics and fit matter: if the glasses sit off-centre, the two eyes can see slightly different distortion. Check a finding with a second person on the same glasses before reading it as your own.
-- Parked ideas: an on-screen Brock string (removed for now as unproven), sweep and jump vergence modes, a random-dot quoit, per-eye contrast, a near-threshold depth task, and a log button for prism and dot readings.
+Repo root contains `index.html`, `sbs.html`, `images/`, `.nojekyll` and this file. GitHub → Settings → Pages → Deploy from a branch → `main` / root. Pushes redeploy automatically within about a minute.
+
+## Out of scope
+
+Not a medical device. Parked ideas: an on-screen Brock string (removed as unproven), sweep and jump vergence modes, a random-dot quoit, per-eye contrast, a near-threshold depth task, URL presets and saved settings, and a VR mode.
