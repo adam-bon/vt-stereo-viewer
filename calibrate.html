@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Anaglyph colour calibration</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #15171b; color: #e6e1d7; overflow: hidden;
+               font: 15px/1.45 "Avenir Next", "Segoe UI", system-ui, sans-serif; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #show { position: fixed; top: 16px; left: 16px; display: none; }
+  #show.on { display: block; }
+  #panel { position: fixed; top: 16px; right: 16px; width: 330px; max-height: calc(100% - 32px); overflow-y: auto;
+           background: #15171bee; border: 1px solid #2b2f36; border-radius: 8px; padding: 14px 16px 16px; box-sizing: border-box; }
+  #panel.hidden { display: none; }
+  .head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  h1 { font-size: 16px; font-weight: 600; margin: 0; }
+  .sub { color: #9a958c; font-size: 13px; margin: 0 0 14px; }
+  fieldset { border: 1px solid #2b2f36; border-radius: 6px; padding: 8px 12px 10px; margin: 0 0 12px; }
+  legend { padding: 0 6px; font-weight: 600; font-size: 13px; }
+  .row { display: grid; grid-template-columns: 18px 1fr 48px; gap: 10px; align-items: center; margin: 3px 0; }
+  .row.wide { grid-template-columns: 100px 1fr 64px; }
+  .row span:first-child { color: #9a958c; font-size: 13px; }
+  .row output { text-align: right; font-variant-numeric: tabular-nums; font-size: 13px; }
+  input[type=range] { width: 100%; }
+  .hex { display: flex; align-items: center; gap: 10px; margin: 0 0 6px; }
+  .sw { width: 26px; height: 26px; border-radius: 4px; border: 1px solid #0008; }
+  input[type=text] { font: 14px ui-monospace, Menlo, Consolas, monospace; width: 92px; background: #1e2127;
+                     color: #e6e1d7; border: 1px solid #353a43; border-radius: 4px; padding: 4px 6px; }
+  #out { font: 13px ui-monospace, Menlo, Consolas, monospace; background: #1e2127; border-radius: 6px;
+         padding: 10px 12px; margin: 4px 0 10px; user-select: all; line-height: 1.6; white-space: pre; }
+  button { font: inherit; font-size: 13px; background: #2b2f36; color: #e6e1d7; border: 1px solid #353a43; border-radius: 4px; padding: 5px 10px; cursor: pointer; }
+  button:hover { background: #353a43; }
+  .how { color: #9a958c; font-size: 13px; margin-top: 14px; }
+  .how p { margin: 0 0 8px; }
+  .how b { color: #c9c3b8; font-weight: 500; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<button id="show">Show controls (H)</button>
+<div id="panel">
+  <div class="head"><h1>Anaglyph colour calibration</h1><button id="hide">Hide (H)</button></div>
+  <p class="sub">Red lens on the right eye, green on the left. The cyan ring is for the red lens, the red ring for the green lens.</p>
+
+  <fieldset id="bg"><legend>Background (the card)</legend></fieldset>
+  <fieldset id="a"><legend>Ring for the red lens (shows cyan)</legend></fieldset>
+  <fieldset id="b"><legend>Ring for the green lens (shows red)</legend></fieldset>
+
+  <fieldset>
+    <legend>Geometry and edges</legend>
+    <div class="row wide"><span>Base in / out</span><input type="range" id="sep" min="-300" max="300" value="80"><output id="sepOut"></output></div>
+    <div class="row wide"><span>Ring size</span><input type="range" id="size" min="10" max="48" value="30"><output id="sizeOut"></output></div>
+    <div class="row wide"><span>Edge softness</span><input type="range" id="soft" min="0" max="30" value="0"><output id="softOut"></output></div>
+    <div class="row wide"><span>Blend gamma</span><input type="range" id="gamma" min="10" max="30" value="22"><output id="gammaOut"></output></div>
+    <div class="row wide"><span>Subpixel shift</span><input type="range" id="shift" min="-10" max="10" value="0"><output id="shiftOut"></output></div>
+  </fieldset>
+
+  <div id="out"></div>
+  <button id="copy">Copy values</button>
+  <button id="fs">Fullscreen (F)</button>
+
+  <div class="how">
+    <p><b>Through the red lens only:</b> the cyan ring should be solid black and the red ring should vanish. Red ring shows dark → lower the background's red. Shows light → raise it.</p>
+    <p><b>Through the green lens only:</b> the red ring should be solid black and the cyan ring should vanish. Cyan ring shows dark → lower the background's green. Shows light → raise it.</p>
+    <p><b>Only an outline left?</b> Softness 0 gives hard pixel edges with no in-between colours. Softness above 0 blends the edge in linear light using the gamma value, so an edge that stays balanced at 2.2 but not at 1.0 confirms it was the blending. Subpixel shift slides the red channel sideways by tenths of a pixel to counter the LCD's red/green subpixel offset.</p>
+    <p>Arrow keys move base in / out (Shift for bigger steps). Where the rings cross, each channel multiplies, which is what both eyes seeing dark looks like.</p>
+  </div>
+</div>
+
+<script>
+const colours = {
+  bg: [240, 240, 240],
+  a:  [0, 240, 240],   // for the red lens
+  b:  [255, 0, 0],     // for the green lens
+};
+const hex = c => '#' + c.map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
+const parse = s => { const m = /^#?([0-9a-f]{6})$/i.exec(s.trim()); return m ? [0, 2, 4].map(i => parseInt(m[1].substr(i, 2), 16)) : null; };
+
+function buildPanel(key) {
+  const fs = document.getElementById(key);
+  const sw = document.createElement('div'); sw.className = 'sw';
+  const hx = document.createElement('input'); hx.type = 'text'; hx.maxLength = 7;
+  const head = document.createElement('div'); head.className = 'hex'; head.append(sw, hx);
+  fs.append(head);
+  const sliders = ['R', 'G', 'B'].map((ch, i) => {
+    const row = document.createElement('div'); row.className = 'row';
+    const lab = document.createElement('span'); lab.textContent = ch;
+    const sl = document.createElement('input'); sl.type = 'range'; sl.min = 0; sl.max = 255;
+    const o = document.createElement('output');
+    row.append(lab, sl, o); fs.append(row);
+    sl.addEventListener('input', () => { colours[key][i] = +sl.value; refresh(); });
+    return [sl, o];
+  });
+  hx.addEventListener('change', () => { const v = parse(hx.value); if (v) colours[key] = v; refresh(); });
+  return () => {
+    const c = colours[key];
+    sw.style.background = hex(c);
+    if (document.activeElement !== hx) hx.value = hex(c);
+    sliders.forEach(([sl, o], i) => { sl.value = c[i]; o.value = c[i]; });
+  };
+}
+const panels = ['bg', 'a', 'b'].map(buildPanel);
+
+const $ = id => document.getElementById(id);
+const ctl = { sep: $('sep'), size: $('size'), soft: $('soft'), gamma: $('gamma'), shift: $('shift') };
+for (const k in ctl) ctl[k].addEventListener('input', refresh);
+
+const cv = $('c'), ctx = cv.getContext('2d');
+let pending = false;
+
+// Each ring darkens the card per channel by the ratio of its colour to the card's, in linear light.
+// Edge coverage mixes that ratio towards 1, so soft edges stay balanced through the filters.
+function draw() {
+  pending = false;
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  const W = Math.round(innerWidth * dpr), H = Math.round(innerHeight * dpr);
+  if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+  const r = Math.min(W, H) * (+ctl.size.value / 100), w = r * 0.23;
+  const sep = +ctl.sep.value / 100 * r, soft = +ctl.soft.value * dpr, gamma = +ctl.gamma.value / 10;
+  const shift = +ctl.shift.value / 10 * dpr;             // red channel slides sideways by this
+  // base-out: left eye's picture (red ring, green lens) goes right, right eye's (cyan) goes left
+  const ax = W / 2 - sep / 2, bx = W / 2 + sep / 2, cy = H / 2;
+
+  const dec = v => Math.pow(v / 255, gamma), enc = l => 255 * Math.pow(Math.max(l, 0), 1 / gamma);
+  const bgL = colours.bg.map(dec);
+  const fA = colours.a.map((v, i) => bgL[i] > 0 ? dec(v) / bgL[i] : 0);
+  const fB = colours.b.map((v, i) => bgL[i] > 0 ? dec(v) / bgL[i] : 0);
+  const half = w / 2, s = Math.max(soft, 0.0001);
+  const cover = d => Math.min(1, Math.max(0, (half + s / 2 - Math.abs(d - r)) / s));
+
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = hex(colours.bg); ctx.fillRect(0, 0, W, H);
+
+  const reach = r + half + s + Math.abs(shift) + 2;
+  const x0 = Math.max(0, Math.floor(Math.min(ax, bx) - reach)), x1 = Math.min(W, Math.ceil(Math.max(ax, bx) + reach));
+  const y0 = Math.max(0, Math.floor(cy - reach)), y1 = Math.min(H, Math.ceil(cy + reach));
+  const bw = x1 - x0, bh = y1 - y0;
+  if (bw <= 0 || bh <= 0) return;
+  const img = ctx.createImageData(bw, bh), d = img.data;
+  const bg32 = (255 << 24) | (colours.bg[2] << 16) | (colours.bg[1] << 8) | colours.bg[0];
+  new Uint32Array(d.buffer).fill(bg32);
+  const cache = new Map();
+  for (let y = y0; y < y1; y++) {
+    const dy = y - cy, dy2 = dy * dy;
+    for (let x = x0; x < x1; x++) {
+      const i = ((y - y0) * bw + (x - x0)) * 4;
+      const tA0 = cover(Math.sqrt((x - ax) * (x - ax) + dy2)), tB0 = cover(Math.sqrt((x - bx) * (x - bx) + dy2));
+      // green and blue sampled at the pixel, red sampled `shift` pixels over
+      let tAr = tA0, tBr = tB0;
+      if (shift !== 0) {
+        const px = x - shift;
+        tAr = cover(Math.sqrt((px - ax) * (px - ax) + dy2)); tBr = cover(Math.sqrt((px - bx) * (px - bx) + dy2));
+      }
+      if (tA0 === 0 && tB0 === 0 && tAr === 0 && tBr === 0) continue;
+      for (let ch = 0; ch < 3; ch++) {
+        const tA = ch === 0 ? tAr : tA0, tB = ch === 0 ? tBr : tB0;
+        if (tA === 0 && tB === 0) continue;
+        const key = (tA * 4096 | 0) * 4097 + (tB * 4096 | 0) + ch * 2e7;
+        let v = cache.get(key);
+        if (v === undefined) {
+          v = enc(bgL[ch] * (1 + tA * (fA[ch] - 1)) * (1 + tB * (fB[ch] - 1)));
+          cache.set(key, v);
+        }
+        d[i + ch] = v;
+      }
+    }
+  }
+  ctx.putImageData(img, x0, y0);
+
+  const bar = 44 * dpr, fs = 18 * dpr;
+  ctx.fillStyle = '#111'; ctx.fillRect(0, H - bar, W, bar);
+  ctx.fillStyle = '#e9e4d8'; ctx.font = `600 ${fs}px "Avenir Next", "Segoe UI", system-ui, sans-serif`;
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left'; ctx.fillText('cyan ring = red lens (right eye)', 20 * dpr, H - bar / 2);
+  ctx.textAlign = 'center'; ctx.fillText(sepLabel(), W / 2, H - bar / 2);
+  ctx.textAlign = 'right'; ctx.fillText('red ring = green lens (left eye)', W - 20 * dpr, H - bar / 2);
+}
+function sepLabel() {
+  const v = +ctl.sep.value;
+  return v > 0 ? `base-out ${v}%` : v < 0 ? `base-in ${-v}%` : 'aligned';
+}
+function refresh() {
+  panels.forEach(p => p());
+  $('sepOut').value = sepLabel().replace('base-', '');
+  $('sizeOut').value = ctl.size.value + '%';
+  $('softOut').value = ctl.soft.value + ' px';
+  $('gammaOut').value = (+ctl.gamma.value / 10).toFixed(1);
+  $('shiftOut').value = (+ctl.shift.value / 10).toFixed(1) + ' px';
+  $('out').textContent =
+    `background      ${hex(colours.bg)}\nred-lens ring   ${hex(colours.a)}\ngreen-lens ring ${hex(colours.b)}\n` +
+    `edge softness ${ctl.soft.value} px, gamma ${(+ctl.gamma.value / 10).toFixed(1)}, red shift ${(+ctl.shift.value / 10).toFixed(1)} px`;
+  if (!pending) { pending = true; requestAnimationFrame(draw); }
+}
+
+const panel = $('panel'), show = $('show');
+function togglePanel() {
+  panel.classList.toggle('hidden');
+  show.classList.toggle('on', panel.classList.contains('hidden'));
+}
+$('hide').addEventListener('click', togglePanel);
+show.addEventListener('click', togglePanel);
+function fullscreen() { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen(); }
+$('fs').addEventListener('click', fullscreen);
+$('copy').addEventListener('click', () => navigator.clipboard?.writeText($('out').textContent));
+addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' && e.target.type === 'text') return;
+  const step = e.shiftKey ? 10 : 1;
+  switch (e.key) {
+    case 'h': case 'H': togglePanel(); break;
+    case 'f': case 'F': fullscreen(); break;
+    case 'ArrowRight': ctl.sep.value = Math.min(300, +ctl.sep.value + step); refresh(); break;
+    case 'ArrowLeft':  ctl.sep.value = Math.max(-300, +ctl.sep.value - step); refresh(); break;
+    case '0': ctl.sep.value = 0; refresh(); break;
+    default: return;
+  }
+  e.preventDefault();
+});
+addEventListener('resize', refresh);
+refresh();
+</script>
+</body>
+</html>
